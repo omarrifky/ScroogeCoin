@@ -1,0 +1,21 @@
+import java.util.ArrayList;
+
+public class Transaction {
+	public static int counter = 0;
+	public int transactioinID;
+	public String hashpointer;
+	public String PreviousHashpointer;
+	String UserSign = "";
+	public User from;
+	public User to;
+	public ArrayList<Coin> coinsInvolved = new ArrayList<Coin>();
+	
+	public Transaction(User f, User t, ArrayList<Coin> c) throws Exception {
+		from = f;
+		to = t;
+		coinsInvolved = c;
+		transactioinID = counter;
+		counter++;
+		UserSign = Crypto.sign(this.toString(), f.keys.getPrivate());
+	}
+}

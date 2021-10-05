@@ -1,0 +1,14 @@
+
+public class Engine {
+
+	public static void main(String[] args) throws Exception {
+		Scrooge s = new Scrooge();
+		s.createUsers();
+//		for(int i = 0;i<100;i++) {
+//			s.UserTransfer(s.users.get(i), s.users.get((i+1)%100), 11);
+//		}
+		
+		System.out.println(s.blocks.size());
+		
+	}
+}

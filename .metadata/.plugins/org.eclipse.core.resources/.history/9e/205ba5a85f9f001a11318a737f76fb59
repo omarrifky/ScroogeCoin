@@ -1,0 +1,22 @@
+import java.io.FileWriter;
+import java.io.InputStreamReader;
+import java.util.Scanner;
+ 
+   
+public class Engine{
+	public static String output = "";
+
+	@SuppressWarnings("resource")
+	public static void main(String[] args) throws Exception {
+//		if (new Scanner(new InputStreamReader(System.in)).nextLine()
+//				.equals(" ")) {
+//			FileWriter myWriter = new FileWriter("output.txt");
+//			myWriter.write(output);
+//			myWriter.close();
+//			System.exit(0);
+//			s.FinalBlockSign();
+//		}
+		Scrooge s = new Scrooge();
+		
+	}
+}

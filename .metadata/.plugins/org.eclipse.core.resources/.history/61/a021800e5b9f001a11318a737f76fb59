@@ -1,0 +1,14 @@
+import java.util.ArrayList;
+
+public class Block {
+	public static int counter = 0;
+	public int blockID;
+	public int hashpointerBlock;
+	public int hashpointerToPreviousBlock;
+	public ArrayList<Transaction> transactions = new ArrayList<Transaction>();
+
+	public Block() {
+		blockID = counter;
+		counter++;
+	}
+}

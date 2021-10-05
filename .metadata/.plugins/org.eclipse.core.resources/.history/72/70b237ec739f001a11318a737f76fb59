@@ -1,0 +1,249 @@
+
+import java.io.FileWriter;
+import java.security.KeyPair;
+import java.util.ArrayList;
+
+public class Scrooge{
+	ArrayList<Block> blocks = new ArrayList<Block>();
+	ArrayList<Transaction> allTransactions = new ArrayList<Transaction>();
+	ArrayList<Transaction> pendingTransactions = new ArrayList<Transaction>();
+	ArrayList<User> users = new ArrayList<User>();
+	public KeyPair keys;
+	
+
+	public Scrooge() throws Exception {
+		keys = Crypto.generateKeyPair();
+		createUsers();
+		while(true){
+			randomTransaction();
+			
+		}
+	}
+	
+	public void createCoin(User u, int count) throws Exception {
+		for (int i = 0; i < count; i++) {
+			Coin c = new Coin();
+			c.ScroogeSign = Crypto.sign(c.toString(), this.keys.getPrivate());
+			c.owner = u;
+			u.Coins.add(c);
+			Transaction t = new Transaction(this,u, c);
+		}
+	}
+
+	public boolean isCoinOwner(User u, Coin c) {
+		if (u.userId == c.owner.userId)
+			return true;
+		return false;
+	}
+	
+	public void UserTransfer(User f, User t, int amount) throws Exception {
+		int validcoins = 0;
+		ArrayList<Coin> coinInTrans = new ArrayList<Coin>();
+		for (int i = 0; i < f.Coins.size(); i++) {
+			boolean signedByScrooge = Crypto.verify(f.Coins.get(i).toString(), f.Coins.get(i).ScroogeSign, this.keys.getPublic());
+			if (isDoubleSpent(f.Coins.get(i)) == false && isCoinOwner(f,f.Coins.get(i))&& signedByScrooge){
+				validcoins++;
+			}
+				
+		}
+		if (validcoins < amount) {
+			System.out.println("No Sufficient Funds");
+			return;
+		} else {
+			int index = 0;
+			for (int i = 0; i < amount; i++) {
+				for (int j = 0; j < f.Coins.size(); j++) {
+					if (isDoubleSpent(f.Coins.get(j)) == false) {
+						index = j;
+						break;
+					}
+				}
+				coinInTrans.add(f.Coins.get(index));
+			}
+			Transfer(f, t, coinInTrans);
+		}
+		
+	}
+
+	public boolean isDoubleSpent(Coin c) {
+		boolean coinSpent = false;
+		for (int i = 0; i < pendingTransactions.size(); i++) {
+			for (int j = 0; j < pendingTransactions.get(i).coinsInvolved.size(); j++) {
+				if (c.coinId == pendingTransactions.get(i).coinsInvolved.get(j).coinId) {
+					coinSpent = true;
+				}
+			}
+		}
+		return coinSpent;
+	}
+
+	public void Transfer(User f, User t, ArrayList<Coin> c) throws Exception {
+		boolean verifyTransactions = VerifyTransactions();
+		if(verifyTransactions==true) {
+		Transaction tran = new Transaction(f, t, c);
+	    tran.UserSign =  Crypto.sign(tran.toString(), f.keys.getPrivate());
+	    tran.hashpointer = tran.hashCode() +"";
+	    if(allTransactions.size()!=0)
+	    tran.PreviousHashpointer = allTransactions.get(allTransactions.size()-1).hashpointer;
+	    allTransactions.add(tran);
+		pendingTransactions.add(tran);
+		printPending();
+		if (pendingTransactions.size() == 10) {
+			CreateBlockandConfirmTran();
+		}
+		}
+		else {
+			Engine.output = Engine.output + "Transactions have been manipulated, can't build on manipulated transactions";
+			System.exit(0);
+		}
+	}
+
+	public void CreateBlockandConfirmTran() throws Exception {
+	 boolean blocksverfied = VerifyBlockChain();
+	 if(blocksverfied==true) {
+		Block b = new Block();
+		for (int i = 0; i < pendingTransactions.size(); i++) { // Add to block and perform transactions
+			boolean valid = Crypto.verify(pendingTransactions.get(i).toString(), pendingTransactions.get(i).UserSign, pendingTransactions.get(i).from.keys.getPublic());
+			if(valid) {
+			b.transactions.add(pendingTransactions.get(i));
+			FinalTransfer(pendingTransactions.get(i).from, pendingTransactions.get(i).to,pendingTransactions.get(i).coinsInvolved);
+			}
+			
+		}
+		b.hashpointerBlock = b.hashCode() +"";
+		if(blocks.size()>=1){
+			
+			b.hashpointerToPreviousBlock = blocks.get(blocks.size() - 1).hashpointerBlock;
+		}
+		blocks.add(b);
+		printBlocks();
+		pendingTransactions.clear();
+	 }
+	 else {
+		 Engine.output = Engine.output + "The blocks have been manipulated , can't build on manipulated blocks";
+		 System.exit(0);
+		 
+	 }
+	}
+	public void finalBlockSign() throws Exception{
+		blocks.get(blocks.size()-1).ScroogeSignIfLastBlock = blocks.get(blocks.size()-1).hashpointerBlock = Crypto.sign(blocks.get(blocks.size()-1).hashpointerBlock, this.keys.getPrivate());
+	printFinalBlock();
+	}
+	public void FinalTransfer(User f, User t, ArrayList<Coin> c) {
+
+		for (int i = 0; i < c.size(); i++) {
+			Coin currentCoin = c.get(i);
+//			for (int j = 0; j < f.Coins.size(); j++) {
+//				if (c.get(i).coinId == f.Coins.get(j).coinId) {
+//					t.Coins.add(f.Coins.get(j));
+//					f.Coins.remove(f.Coins.get(j));
+//					t.Coins.get(t.Coins.size() - 1).owner = t;
+//				}
+//			}
+			t.Coins.add(currentCoin);
+			f.Coins.remove(currentCoin);
+			currentCoin.owner = t;
+		}
+
+	}
+
+	public boolean VerifyBlockChain() {
+		for(int i = 1;i<blocks.size();i++){
+			if(!blocks.get(i).hashpointerToPreviousBlock.equals(blocks.get(i-1).hashpointerBlock)){
+				return false;
+			}
+		}
+		return true;
+	}
+	
+	public boolean VerifyTransactions() {
+		for(int i = 1;i<allTransactions.size();i++){
+			if(!allTransactions.get(i).PreviousHashpointer.equals(allTransactions.get(i-1).hashpointer)){
+				return false;
+			}
+		}
+		return true;
+	}
+	
+	
+	public void printBlocks(){
+		String outputBlocks = "";
+		outputBlocks+="block id"+blocks.get(0).blockID+"#hashpointer"+blocks.get(0).hashpointerBlock+"# previousBlock No previous this is first \n";
+		for(int i = 1;i<blocks.size();i++){
+			outputBlocks+="block id "+blocks.get(i).blockID+" #hashpointer "+blocks.get(i).hashpointerBlock+" #previousBlock "+blocks.get(i).hashpointerToPreviousBlock+"\n";
+		}
+		Engine.output+= outputBlocks;
+		System.out.print(outputBlocks);
+	}
+	
+	public void printFinalBlock(){
+		String outputBlocks = "";
+		outputBlocks+="block id"+blocks.get(0).blockID+"#hashpointer"+blocks.get(0).hashpointerBlock+"#previousBlock No previous this is first \n";
+		for(int i = 1;i<blocks.size();i++){
+			if(i==blocks.size()-1)
+				outputBlocks+="block id "+blocks.get(i).blockID+" #hashpointer "+blocks.get(i).hashpointerBlock+" #previousBlock "+blocks.get(i).hashpointerToPreviousBlock+" Scrooge Signiture: "+blocks.get(i).ScroogeSignIfLastBlock+"\n";
+			else
+			outputBlocks+="block id "+blocks.get(i).blockID+" #hashpointer "+blocks.get(i).hashpointerBlock+" #previousBlock "+blocks.get(i).hashpointerToPreviousBlock+"\n";
+		}
+		Engine.output+= outputBlocks;
+		System.out.print(outputBlocks);
+	}
+	
+	
+	public void printPending(){
+		String pendingOutput = "";
+		for(int i = 0;i<pendingTransactions.size();i++){
+			pendingOutput+= "Transaction ID: "+pendingTransactions.get(i).transactioinID+" from "+pendingTransactions.get(i).from+" to "+pendingTransactions.get(i).to+" User Signature "+pendingTransactions.get(i).UserSign+" Coins "+pendingTransactions.get(i).coinsInvolved.size()+"\n";
+		}
+		Engine.output+= pendingOutput;
+		System.out.print(pendingOutput);
+	}
+	public void randomTransaction() throws Exception{
+		int user = (int)(Math.random()* users.size());
+		int user2 = (int)(Math.random()* users.size());
+		if(user == user2){
+			return;
+		}
+		
+		int amount = (int)(Math.random()*users.get(user).Coins.size());
+		UserTransfer(users.get(user), users.get(user2),amount);
+	}
+	
+	public void createUsers() throws Exception  {
+		for(int i  = 0 ;i<10;i++) {
+			User u = new User();
+			this.createCoin(u, 10);
+			this.users.add(u);
+			try {
+				u.keys = Crypto.generateKeyPair();
+				System.out.println("User ID :"+ u.userId+" #Public Key"+u.keys.getPublic()+" #number of Coins "+u.Coins.size());
+				Engine.output+="User ID :"+ u.userId+"#Public Key"+u.keys.getPublic()+" #number of Coins "+u.Coins.size()+"\n";
+			} catch (Exception e) {
+				System.out.println("Error");
+			}
+		}
+	}
+
+	 public void ExitCode() throws Exception {
+	
+		boolean validblocks =  VerifyBlockChain();
+		boolean validtrans = VerifyTransactions();
+		if(validblocks==false) {
+			Engine.output = Engine.output+"The blocks have been manipulated";
+		}
+		 if(validtrans==false) {
+			 Engine.output = Engine.output+"The transactions have been manipulated";
+		 }
+
+		 	finalBlockSign();
+		 	
+		 	
+		FileWriter myWriter = new FileWriter("output.txt");
+		myWriter.write(Engine.output);
+		myWriter.close();
+
+		 System.exit(0);
+	 
+
+}
+}

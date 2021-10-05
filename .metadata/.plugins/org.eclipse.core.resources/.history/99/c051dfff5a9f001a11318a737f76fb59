@@ -1,0 +1,127 @@
+import java.security.KeyPair;
+import java.util.ArrayList;
+
+public class Scrooge {
+	ArrayList<Block> blocks = new ArrayList<Block>();
+	ArrayList<Transaction> pendingTransactions = new ArrayList<Transaction>();
+	ArrayList<User> users = new ArrayList<User>();
+	public KeyPair keys;
+	public Scrooge() throws Exception {
+		keys = Crypto.generateKeyPair();
+	}
+	public void createCoin(User u, int count) throws Exception {
+		for (int i = 0; i < count; i++) {
+			Coin c = new Coin();
+			c.ScroogeSign = Crypto.sign(c.toString(), this.keys.getPrivate());
+			c.owner = u;
+			u.Coins.add(c);
+		}
+	}
+	public boolean isCoinOwner(User u , Coin c) {
+	if(u.userId == c.owner.userId)
+		return true;
+	return false;
+}
+	public void UserTransfer(User f, User t, int amount) throws Exception {
+
+		int validcoins = 0;
+		ArrayList<Coin> coinInTrans = new ArrayList<Coin>();
+		for (int i = 0; i < f.Coins.size(); i++) {
+			boolean signedByScrooge = Crypto.verify(f.Coins.toString(), f.Coins.get(i).ScroogeSign, this.keys.getPublic());
+			if (isDoubleSpent(f.Coins.get(i)) == false && isCoinOwner(f,f.Coins.get(i))&& signedByScrooge)
+				validcoins++;
+		}
+		if (validcoins < amount) {
+			System.out.println("No Sufficient Funds");
+			return;
+		} else {
+			int index = 0;
+			for (int i = 0; i < amount; i++) {
+				for (int j = 0; j < f.Coins.size(); j++) {
+					if (isDoubleSpent(f.Coins.get(j)) == false) {
+						index = j;
+						break;
+					}
+				}
+				coinInTrans.add(f.Coins.get(index));
+
+			}
+			Transfer(f, t, coinInTrans);
+		}
+		
+	}
+
+	public boolean isDoubleSpent(Coin c) {
+		boolean coinSpent = false;
+		for (int i = 0; i < pendingTransactions.size(); i++) {
+			for (int j = 0; j < pendingTransactions.get(i).coinsInvolved.size(); j++) {
+				if (c.coinId == pendingTransactions.get(i).coinsInvolved.get(j).coinId) {
+					coinSpent = true;
+				}
+			}
+		}
+		return coinSpent;
+	}
+
+	public void Transfer(User f, User t, ArrayList<Coin> c) throws Exception {
+
+		Transaction tran = new Transaction(f, t, c);
+	    tran.UserSign =  Crypto.sign(tran.toString(), f.keys.getPrivate());
+		pendingTransactions.add(tran);
+		if (pendingTransactions.size() == 10) {
+			CreateBlockandConfirmTran();
+
+		}
+	}
+
+	public void CreateBlockandConfirmTran() throws Exception {
+		Block b = new Block();
+		for (int i = 0; i < pendingTransactions.size(); i++) { // Add to block and perform transactions
+			boolean valid = Crypto.verify(pendingTransactions.get(i).toString(), pendingTransactions.get(i).UserSign, pendingTransactions.get(i).from.keys.getPublic());
+			if(valid) {
+			b.transactions.add(pendingTransactions.get(i));
+			FinalTransfer(pendingTransactions.get(i).from, pendingTransactions.get(i).to,pendingTransactions.get(i).coinsInvolved);
+			}
+			
+		}
+		b.hashpointerBlock = b.hashCode();
+		blocks.add(b);
+		pendingTransactions.clear();
+	}
+
+	public void FinalTransfer(User f, User t, ArrayList<Coin> c) {
+
+		for (int i = 0; i < c.size(); i++) {
+			Coin currentCoin = c.get(i);
+//			for (int j = 0; j < f.Coins.size(); j++) {
+//				if (c.get(i).coinId == f.Coins.get(j).coinId) {
+//					t.Coins.add(f.Coins.get(j));
+//					f.Coins.remove(f.Coins.get(j));
+//					t.Coins.get(t.Coins.size() - 1).owner = t;
+//				}
+//			}
+			t.Coins.add(currentCoin);
+			f.Coins.remove(currentCoin);
+			currentCoin.owner = t;
+		}
+
+	}
+
+	public boolean VerifyBlockChain() {
+		return false;
+	}
+
+	public void createUsers() throws Exception  {
+		for(int i  = 0 ;i<100;i++) {
+			User u = new User();
+			this.createCoin(u, 10);
+			this.users.add(u);
+			try {
+				u.keys = Crypto.generateKeyPair();
+			} catch (Exception e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+		}
+	}
+}
